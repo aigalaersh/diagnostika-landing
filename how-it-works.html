@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Диагностика — как это устроено</title>
+<meta name="description" content="Техническое описание: из чего состоит модуль диагностики, как считается результат, где используется модель и как защищены данные.">
+<style>
+:root{
+  --bg:#f7f7f4; --surface:#ffffff; --ink:#1c2430; --muted:#5a6572; --line:#dfe2dc;
+  --accent:#1f5f8b; --accent-ink:#ffffff; --soft:#e8f0f5; --ok:#2f7a4d; --warn:#9a6a14; --warn-bg:#f8f0dc;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181d; --surface:#1c222a; --ink:#e8ebee; --muted:#9aa5b1; --line:#2c353f;
+    --accent:#6aa9d4; --accent-ink:#0e1419; --soft:#1d2a35; --ok:#6cc08d; --warn:#e0b45c; --warn-bg:#2b2516;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181d; --surface:#1c222a; --ink:#e8ebee; --muted:#9aa5b1; --line:#2c353f;
+  --accent:#6aa9d4; --accent-ink:#0e1419; --soft:#1d2a35; --ok:#6cc08d; --warn:#e0b45c; --warn-bg:#2b2516;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px}
+section{padding-block:52px}
+section + section{border-top:1px solid var(--line)}
+h1,h2,h3{line-height:1.2;margin:0 0 .5em}
+h1{font-size:clamp(2rem,5vw,2.8rem);letter-spacing:-.02em}
+h2{font-size:clamp(1.4rem,3vw,1.9rem);letter-spacing:-.01em}
+h3{font-size:1.1rem}
+p{margin:0 0 1em}
+.lead{font-size:1.15rem;color:var(--muted);max-width:42em}
+.muted{color:var(--muted)}
+header.top{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:5}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:14px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:1.15rem;color:var(--ink);text-decoration:none}
+nav a{color:var(--muted);text-decoration:none;margin-left:20px;font-size:.95rem}
+nav a:hover{color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:22px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px}
+.card h3{margin-bottom:.4em}
+.card p:last-child{margin-bottom:0}
+.scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.95rem}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font-weight:700;color:var(--ink)}
+tr:last-child td{border-bottom:0}
+td:first-child{white-space:nowrap;font-weight:600}
+.checks{list-style:none;padding:0;margin:0}
+.checks li{padding-left:28px;position:relative;margin-bottom:.7em}
+.checks li::before{content:"✓";position:absolute;left:0;color:var(--ok);font-weight:700}
+.note{padding:12px 16px;border-radius:12px;background:var(--warn-bg);color:var(--warn);margin-top:16px;font-size:.95rem}
+.legend{margin-top:14px;color:var(--muted);font-size:.95rem}
+.sw{display:inline-block;width:14px;height:14px;border-radius:4px;border:1.5px solid var(--line);background:var(--surface);vertical-align:-2px;margin-right:4px}
+.sw-key{background:var(--soft);border-color:var(--accent)}
+footer{padding-block:32px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line)}
+/* схема */
+.diagram{min-width:760px;display:block;width:100%;height:auto}
+.diagram .lane{fill:var(--soft);opacity:.55}
+.diagram .lane-title{fill:var(--muted);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.diagram .box{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.diagram .box.key{fill:var(--soft);stroke:var(--accent);stroke-width:2}
+.diagram .t{fill:var(--ink);font-size:15px;font-weight:700;text-anchor:middle}
+.diagram .s{fill:var(--muted);font-size:12px;text-anchor:middle}
+.diagram .arrow{fill:none;stroke:var(--accent);stroke-width:2}
+.diagram .arrow.dash{stroke-dasharray:6 5}
+.diagram .lbl{fill:var(--muted);font-size:12px}
+.diagram marker path{fill:var(--accent)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="index.html">Диагностика</a>
+    <nav>
+      <a href="index.html">← На главную</a>
+      <a href="#scheme">Схема</a>
+      <a href="#module">Модуль</a>
+      <a href="#result">Результат</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section>
+  <div class="wrap">
+    <h1>Как это устроено</h1>
+    <p class="lead">Короткое техническое описание: из чего состоит диагностика, как считается результат, где работает нейросеть и откуда берутся материалы по теме.</p>
+  </div>
+</section>
+
+<section id="scheme">
+  <div class="wrap">
+    <h2>Общая схема</h2>
+    <p class="muted">Верхняя полоса — подготовка модуля, она выполняется один раз. Нижняя — то, что происходит в каждой сессии клиента.</p>
+    <div class="scroll">
+      <svg class="diagram" viewBox="0 0 880 470" role="img" aria-labelledby="dtitle">
+        <title id="dtitle">Схема работы диагностики: подготовка модуля и сессия клиента</title>
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker>
+        </defs>
+
+        <rect class="lane" x="8" y="10" width="864" height="140" rx="14"/>
+        <text class="lane-title" x="24" y="32">Подготовка модуля · один раз</text>
+
+        <rect class="box" x="20" y="50" width="170" height="68" rx="12"/>
+        <text class="t" x="105" y="80">Описание модуля</text>
+        <text class="s" x="105" y="100">вопросы, правила, источники</text>
+
+        <rect class="box key" x="240" y="50" width="170" height="68" rx="12"/>
+        <text class="t" x="325" y="80">Автопроверка</text>
+        <text class="s" x="325" y="100">ошибки и предупреждения</text>
+
+        <rect class="box" x="460" y="50" width="170" height="68" rx="12"/>
+        <text class="t" x="545" y="80">Проверка экспертом</text>
+        <text class="s" x="545" y="100">содержание и формулировки</text>
+
+        <rect class="box" x="680" y="50" width="170" height="68" rx="12"/>
+        <text class="t" x="765" y="80">Публикация</text>
+        <text class="s" x="765" y="100">версия фиксируется</text>
+
+        <path class="arrow" d="M190 84 H238" marker-end="url(#ah)"/>
+        <path class="arrow" d="M410 84 H458" marker-end="url(#ah)"/>
+        <path class="arrow" d="M630 84 H678" marker-end="url(#ah)"/>
+
+        <path class="arrow dash" d="M765 118 V166 H105 V215" marker-end="url(#ah)"/>
+        <text class="lbl" x="350" y="161">клиент работает с опубликованной версией</text>
+
+        <rect class="lane" x="8" y="175" width="864" height="290" rx="14"/>
+        <text class="lane-title" x="24" y="197">Сессия клиента · каждый раз</text>
+
+        <rect class="box" x="20" y="215" width="170" height="68" rx="12"/>
+        <text class="t" x="105" y="245">Консультация по теме</text>
+        <text class="s" x="105" y="263">готовая анкета</text>
+        <text class="s" x="105" y="277">или рассказ своими словами</text>
+
+        <rect class="box key" x="240" y="215" width="170" height="68" rx="12"/>
+        <text class="t" x="325" y="245">Движок правил</text>
+        <text class="s" x="325" y="265">отбирает рекомендации</text>
+
+        <rect class="box key" x="460" y="215" width="170" height="68" rx="12"/>
+        <text class="t" x="545" y="245">Результат</text>
+        <text class="s" x="545" y="265">карточки, блоки, сводка</text>
+
+        <rect class="box key" x="680" y="215" width="170" height="68" rx="12"/>
+        <text class="t" x="765" y="245">Пояснение и материалы</text>
+        <text class="s" x="765" y="265">простыми словами, по теме</text>
+
+        <path class="arrow" d="M190 249 H238" marker-end="url(#ah)"/>
+        <path class="arrow" d="M410 249 H458" marker-end="url(#ah)"/>
+        <path class="arrow" d="M630 249 H678" marker-end="url(#ah)"/>
+
+        <rect class="box" x="240" y="370" width="170" height="68" rx="12"/>
+        <text class="t" x="325" y="400">Свой вопрос по теме</text>
+        <text class="s" x="325" y="420">своими словами</text>
+
+        <rect class="box" x="680" y="370" width="170" height="68" rx="12"/>
+        <text class="t" x="765" y="400">Клиент получает ответ</text>
+        <text class="s" x="765" y="420">план, материалы, ответы</text>
+
+        <path class="arrow dash" d="M500 283 V326 H325 V368" marker-end="url(#ah)"/>
+        <text class="lbl" x="335" y="344">по желанию клиента</text>
+        <path class="arrow" d="M765 283 V368" marker-end="url(#ah)"/>
+        <path class="arrow dash" d="M410 404 H678" marker-end="url(#ah)"/>
+        <text class="lbl" x="440" y="394">ответ с цитатами или передача эксперту</text>
+
+        
+      </svg>
+    </div>
+    <p class="legend"><span class="sw sw-key"></span> Синим выделено то, что сервис делает автоматически. <span class="sw"></span> Остальное делает человек: специалист, который готовит модуль, эксперт и клиент.</p>
+  </div>
+</section>
+
+<section id="module">
+  <div class="wrap">
+    <h2>Из чего состоит модуль</h2>
+    <p class="lead">Модуль — это описание предметной области в виде данных. Код сервиса от темы не зависит: новая тема — это новый модуль, а не доработка программы.</p>
+    <div class="scroll" style="margin-top:22px">
+      <table>
+        <thead><tr><th>Часть</th><th>Что в ней</th></tr></thead>
+        <tbody>
+          <tr><td>Вопросы</td><td>Тексты, варианты ответов с понятными подписями, условия показа. Вопросы объединены в блоки по темам.</td></tr>
+          <tr><td>Правила</td><td>Связь ответов с рекомендациями: «если есть форма на сайте и собираются данные граждан, то…». Правило включает или отключает рекомендацию.</td></tr>
+          <tr><td>Рекомендации</td><td>Что делать клиенту: название, текст, ссылки на источники.</td></tr>
+          <tr><td>Источники</td><td>Документы по теме: законы, разъяснения, примеры из практики. Из них подбираются материалы к рекомендациям и ответы на свои вопросы клиента.</td></tr>
+          <tr><td>Шаблоны итога</td><td>Как собрать итог по каждому блоку и общую сводку.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin-top:14px">Модуль хранится как обычный пакет текстовых файлов, поэтому его правки видны построчно и каждая версия воспроизводима.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Как модуль попадает в работу</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Три барьера</h3>
+        <ul class="checks">
+          <li><b>Автоматическая проверка.</b> Ловит ошибки структуры, например правило на несуществующий вопрос. Предупреждения вроде пустой подписи варианта ответа показываются отдельно.</li>
+          <li><b>Проверка содержания экспертом.</b> До неё модуль не попадает к клиентам.</li>
+          <li><b>Отдельное решение о публикации.</b> Только после него модуль становится доступен.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Версии</h3>
+        <p>Каждая публикация — новая версия. Сессия клиента привязана к версии, с которой начата, поэтому результат нельзя «подменить» правкой модуля задним числом.</p>
+        <p>Опубликованную версию не изменяют: правка создаёт новую.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="result">
+  <div class="wrap">
+    <h2>Как получается результат</h2>
+    <p class="lead">Проще всего представить это как проверку по списку. Специалисты заранее записали, что нужно делать в какой ситуации. Сервис сверяет вашу ситуацию с этим списком и показывает, что к вам относится.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>1. Вы отвечаете на вопросы</h3>
+        <p>Сервис запоминает ваши ответы. Лишнего он не спрашивает: если какой-то вопрос к вам не относится, его не будет.</p>
+      </div>
+      <div class="card">
+        <h3>2. Сервис сверяет ответы с правилами</h3>
+        <p>Правило звучит так: «если у вас на сайте есть форма с телефоном, то нужно сделать вот это». Сервис проходит по всем правилам и отбирает те, что подходят вам. Одинаковые ответы всегда дают одинаковый результат.</p>
+      </div>
+      <div class="card">
+        <h3>3. Каждая рекомендация получает пометку</h3>
+        <p>Пометка показывает, подходит ли рекомендация именно вам. Так сразу видно, что к вам относится, а что нет.</p>
+      </div>
+      <div class="card">
+        <h3>4. К каждой рекомендации есть объяснение</h3>
+        <p>Под рекомендацией написано, из каких ваших ответов она получилась, какое правило сработало и что сервис предположил, если вы чего-то не знали.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h3>Пример</h3>
+      <p><b>Вы ответили:</b> на сайте есть форма, в ней просят имя и телефон.<br>
+      <b>Сработало правило:</b> сайт собирает данные людей, значит, нужен открытый документ о том, как они обрабатываются.<br>
+      <b>Вы получили рекомендацию:</b> разместить на сайте политику обработки персональных данных, с пометкой «подходит вам».</p>
+    </div>
+    <p class="muted" style="margin-top:14px">В конце сервис собирает рекомендации в итог по каждой теме и в общую сводку.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Где работает нейросеть</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Помогает, но не решает</h3>
+        <p>Нейросеть понимает свободный рассказ клиента и предлагает ответы на вопросы анкеты. Клиент подтверждает каждый, и только после этого ответ учитывается. Ещё она формулирует вопросы понятнее, пишет пояснение к результату и ищет материалы по теме.</p>
+        <p>Рекомендации выдают правила, новых нейросеть не добавляет. Если она недоступна, диалог идёт дальше на утверждённых формулировках модуля.</p>
+      </div>
+      <div class="card">
+        <h3>Материалы по теме</h3>
+        <p>К рекомендации подбираются выдержки из проверенных документов: ссылка на закон, пример из практики. Это дополнение: саму рекомендацию даёт правило. Если подходящего не нашлось, в карточке так и написано: «основание не найдено».</p>
+      </div>
+    </div>
+    <div class="note">Принцип: рекомендацию даёт правило, а не нейросеть. Показываются только материалы, найденные в документах.</div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Свой рассказ и свои вопросы</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3>Начать со своего рассказа</h3>
+        <p>Клиент может не отвечать на вопросы по порядку, а описать ситуацию своими словами. Сервис предложит подходящие темы и ответы. Правила учитывают их только после подтверждения клиента. Сам рассказ не сохраняется.</p>
+      </div>
+      <div class="card">
+        <h3>Свой вопрос по теме</h3>
+        <p>Отдельно от анкеты клиент может задать вопрос своими словами. Ответ строится по материалам темы и приходит с цитатами. Анкету такой вопрос не меняет. Если в материалах ответа нет, сервис отказывается отвечать и передаёт вопрос эксперту.</p>
+      </div>
+      <div class="card">
+        <h3>Мнение эксперта по рекомендации</h3>
+        <p>По любой рекомендации клиент может попросить мнение эксперта. Эксперт видит название рекомендации, сработавшие правила и коды ответов, но не личный текст клиента. Он подтверждает вывод, исправляет его или просит дополнительные данные. Срок по умолчанию — 72 часа.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section>
+  <div class="wrap">
+    <h2>Возможность подключения</h2>
+    <p class="lead">Модуль можно подключить к сайту или форме обращения через программный интерфейс (REST, JSON). Порядок обмена такой.</p>
+    <div class="scroll" style="margin-top:22px">
+      <table>
+        <thead><tr><th>Шаг</th><th>Что делает ваша сторона</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Создаёт сессию и получает токен.</td></tr>
+          <tr><td>2</td><td>Показывает вопросы и отправляет ответы клиента.</td></tr>
+          <tr><td>3</td><td>Запрашивает результат: карточки, блоки, сводку, материалы.</td></tr>
+          <tr><td>4</td><td>При необходимости передаёт вопрос эксперту и получает его решение.</td></tr>
+          <tr><td>5</td><td>По желанию клиента удаляет сессию.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+</main>
+
+<footer>
+  <div class="wrap"><a href="index.html">← Вернуться на главную</a> · Диагностика · рабочее название</div>
+</footer>
+
+</body>
+</html>

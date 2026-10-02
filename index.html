@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Диагностика — предварительное заключение до первого звонка</title>
+<meta name="description" content="Управляемый диалог ведёт клиента по вопросам и выдаёт предварительное заключение с объяснением. Консультант получает уже разобранного клиента.">
+<style>
+:root{
+  --bg:#f7f7f4; --surface:#ffffff; --ink:#1c2430; --muted:#5a6572; --line:#dfe2dc;
+  --accent:#1f5f8b; --accent-ink:#ffffff; --soft:#e8f0f5; --ok:#2f7a4d; --warn:#9a6a14; --warn-bg:#f8f0dc;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181d; --surface:#1c222a; --ink:#e8ebee; --muted:#9aa5b1; --line:#2c353f;
+    --accent:#6aa9d4; --accent-ink:#0e1419; --soft:#1d2a35; --ok:#6cc08d; --warn:#e0b45c; --warn-bg:#2b2516;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181d; --surface:#1c222a; --ink:#e8ebee; --muted:#9aa5b1; --line:#2c353f;
+  --accent:#6aa9d4; --accent-ink:#0e1419; --soft:#1d2a35; --ok:#6cc08d; --warn:#e0b45c; --warn-bg:#2b2516;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding-inline:20px}
+section{padding-block:64px}
+section + section{border-top:1px solid var(--line)}
+h1,h2,h3{line-height:1.2;margin:0 0 .5em}
+h1{font-size:clamp(2rem,5vw,3.2rem);letter-spacing:-.02em}
+h2{font-size:clamp(1.5rem,3.2vw,2.1rem);letter-spacing:-.01em}
+h3{font-size:1.1rem}
+p{margin:0 0 1em}
+.lead{font-size:1.2rem;color:var(--muted);max-width:40em}
+.muted{color:var(--muted)}
+header.top{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:5}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:14px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:1.15rem}
+nav a{color:var(--muted);text-decoration:none;margin-left:20px;font-size:.95rem}
+nav a:hover{color:var(--ink)}
+.btn{display:inline-block;padding:13px 22px;border-radius:10px;background:var(--accent);color:var(--accent-ink);text-decoration:none;font-weight:600;border:2px solid var(--accent)}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
+@media (max-width:820px){.hero{grid-template-columns:1fr}}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:28px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:28px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px}
+.card h3{margin-bottom:.4em}
+.card p:last-child{margin-bottom:0}
+.step{display:flex;gap:16px}
+.num{flex:none;width:36px;height:36px;border-radius:50%;background:var(--soft);color:var(--accent);display:grid;place-items:center;font-weight:700}
+.tag{display:inline-block;font-size:.8rem;padding:2px 10px;border-radius:99px;background:var(--soft);color:var(--accent);margin-right:6px}
+.tag.warn{background:var(--warn-bg);color:var(--warn)}
+/* макет карточки результата */
+.mock{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+.mock .cap{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.mock h3{font-size:1.15rem}
+.mock dl{margin:14px 0 0;display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:.95rem}
+.mock dt{color:var(--muted)}
+.mock dd{margin:0}
+.mock .note{margin-top:14px;padding:10px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:.9rem}
+.mock .src{margin-top:14px;font-size:.9rem;color:var(--muted);border-top:1px dashed var(--line);padding-top:12px}
+.checks{list-style:none;padding:0;margin:0}
+.checks li{padding-left:28px;position:relative;margin-bottom:.7em}
+.checks li::before{content:"✓";position:absolute;left:0;color:var(--ok);font-weight:700}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:10px}
+summary{cursor:pointer;font-weight:600}
+details p{margin:.8em 0 0;color:var(--muted)}
+.cta{text-align:center;background:var(--soft);border-radius:20px;padding:48px 24px}
+.cta p{margin-inline:auto}
+footer{padding-block:32px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <span class="brand">Диагностика</span>
+    <nav>
+      <a href="#usecases">Для чего</a>
+      <a href="#how">Как работает</a>
+      <a href="#trust">Доверие</a>
+      <a href="#faq">Вопросы</a>
+      <a href="how-it-works.html">Устройство</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<section>
+  <div class="wrap hero">
+    <div>
+      <h1>Узнайте, что нужно клиенту, ещё до первого звонка</h1>
+      <p class="lead">Управляемый диалог ведёт человека по вопросам и выдаёт предварительное заключение с объяснением. Консультант видит ситуацию клиента до разговора, а клиент получает понятный план действий.</p>
+      <div class="btns">
+        <a class="btn" href="#try" data-todo="ссылка на демо">Пройти пример</a>
+        <a class="btn ghost" href="#try" data-todo="запись на демо">Запросить демо</a>
+      </div>
+      <p class="muted" style="margin-top:18px;font-size:.95rem">Без регистрации. Ответы можно удалить в любой момент.</p>
+    </div>
+    <div class="mock" aria-label="Пример карточки результата">
+      <div class="cap">Пример карточки результата</div>
+      <h3>Разместить на сайте политику обработки персональных данных</h3>
+      <p><span class="tag">Применимо к вам</span></p>
+      <dl>
+        <dt>Ваши ответы</dt><dd>На сайте есть форма, в ней имя и телефон</dd>
+        <dt>Правило</dt><dd>Сайт собирает данные граждан — нужен общедоступный документ о том, как они обрабатываются</dd>
+      </dl>
+      <div class="note"><b>Допущение.</b> Серверы в России — со слов клиента. Если это не так, вывод нужно перепроверить.</div>
+      <div class="src">Материалы по теме: пример из практики · <u>Спросить эксперта</u></div>
+    </div>
+  </div>
+</section>
+
+<section id="usecases">
+  <div class="wrap">
+    <h2>Три задачи, которые решает диалог</h2>
+    <p class="lead">Один и тот же механизм: заранее заданные вопросы, понятные правила и вывод, который можно проверить.</p>
+    <div class="grid3">
+      <div class="card">
+        <h3>Квалификация обращений</h3>
+        <p>Вместо анкеты на десять полей — диалог. После него понятно, какая у клиента ситуация, насколько он вам подходит и что ему нужно.</p>
+      </div>
+      <div class="card">
+        <h3>Предварительная консультация</h3>
+        <p>Клиент получает первичное заключение сразу, не дожидаясь встречи. Эксперт подключается там, где вывод спорный, и не тратит время на азы.</p>
+      </div>
+      <div class="card">
+        <h3>Самопроверка для клиента</h3>
+        <p>Человек сам проходит диагностику по своей теме и видит, где у него пробелы. Хороший повод для первого разговора.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>Как это выглядит для клиента</h2>
+    <div class="grid2">
+      <div class="card step"><div class="num">1</div><div><h3>Проходит консультацию по теме</h3><p>Простые вопросы с вариантами ответов. Следующий вопрос зависит от предыдущих ответов, лишнего сервис не спрашивает. Можно начать и со своего рассказа: клиент описывает ситуацию своими словами, сервис предлагает подходящие ответы, клиент подтверждает каждый.</p></div></div>
+      <div class="card step"><div class="num">2</div><div><h3>Получает план действий</h3><p>Список рекомендаций именно под его ситуацию, а также то, что к нему не относится. Итог по каждой теме и общая сводка.</p></div></div>
+      <div class="card step"><div class="num">3</div><div><h3>Получает обоснование</h3><p>К каждой рекомендации приложено объяснение: на каких ответах она построена и что сервис предположил. Рядом — материалы по теме из проверенных документов: ссылка на закон, пример из практики.</p></div></div>
+      <div class="card step"><div class="num">4</div><div><h3>Задаёт свой вопрос по теме <span class="tag">по желанию</span></h3><p>Отдельно от анкеты клиент может спросить своими словами. Ответ строится по материалам темы и приходит с цитатами. Если в материалах ответа нет, сервис так и говорит и передаёт вопрос эксперту.</p></div></div>
+    </div>
+    <p style="margin-top:24px"><a href="how-it-works.html">Подробнее о том, как устроена диагностика →</a></p>
+  </div>
+</section>
+
+<section id="trust">
+  <div class="wrap">
+    <h2>Почему результату можно верить</h2>
+    <div class="grid2">
+      <div>
+        <ul class="checks">
+          <li><b>Выводы строятся по правилам, а не по догадке.</b> Одни и те же ответы всегда дают один и тот же результат.</li>
+          <li><b>Каждый вывод объясним.</b> Видно, какие ответы и какие правила к нему привели.</li>
+          <li><b>Допущения названы прямо.</b> Если чего-то не знали, сервис прямо пишет об этом.</li>
+        </ul>
+      </div>
+      <div>
+        <ul class="checks">
+          <li><b>Рекомендацию даёт правило, материалы её дополняют.</b> К рекомендации подбираются материалы по теме из проверенных документов. Не нашли — так и пишем, ничего не дописываем.</li>
+          <li><b>Спорное решает человек.</b> Эксперт подтверждает, поправляет или просит уточнить данные.</li>
+          <li><b>Модуль проверяется до запуска.</b> Содержание проверяет эксперт, а публикацию утверждают отдельным решением.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section>
+  <div class="wrap">
+    <h2>Пример готового модуля: персональные данные</h2>
+    <p class="lead">Первый модуль — диагностика того, как компания обрабатывает персональные данные. Он охватывает сайт и формы, кадры, подрядчиков и специальные категории данных.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>Что в нём</h3>
+        <p>Вопросы по блокам, правила, рекомендации с пояснениями и итог по каждому блоку. Клиент видит, что ему делать по каждому блоку.</p>
+      </div>
+      <div class="card">
+        <h3>Как использовать</h3>
+        <p>Консультанту — как входную анкету перед встречей. Клиенту — как самопроверку. С результатом удобно начинать разговор.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Нужна своя область?</h2>
+    <p class="lead">Модуль — это набор вопросов, правил и рекомендаций. Его можно собрать под вашу тему: аудит, подбор услуги, оценка готовности. Содержание вы согласуете с экспертом до запуска.</p>
+    <p>Мы помогаем перевести вашу экспертизу в такую форму и проверить, что выводы совпадают с тем, что сказал бы сам специалист.</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Частые вопросы</h2>
+    <details><summary>Чем это отличается от чат-бота?</summary><p>Чат-бот отвечает свободным текстом, и ответ может быть неточным. Здесь вопросы и правила заданы заранее, вывод всегда объясним, а там, где основания нет, сервис прямо об этом пишет. Нейросеть помогает понять рассказ клиента и пояснить результат, но рекомендации выдают правила.</p></details>
+    <details><summary>Кто отвечает за вывод?</summary><p>Результат — предварительное заключение. Спорные места можно передать эксперту, и его решение возвращается клиенту. Окончательные юридические и деловые решения принимает человек.</p></details>
+    <details><summary>Что с данными?</summary><p>Сессия доступна по личной ссылке, ответы можно удалить в любой момент.</p></details>
+    <details><summary>Сколько времени занимает диалог?</summary><p>Зависит от модуля и от ситуации клиента: вопросы, которые к нему не относятся, не показываются.</p></details>
+    <details><summary>Можно ли сделать свой модуль?</summary><p>Да. Модуль — это структурированное описание вопросов, правил и рекомендаций. Мы поможем его собрать и проверить.</p></details>
+  </div>
+</section>
+
+<section id="try">
+  <div class="wrap">
+    <div class="cta">
+      <h2>Посмотрите на живом примере</h2>
+      <p class="lead">Пройдите диагностику по персональным данным и посмотрите, как выглядит результат.</p>
+      <div class="btns" style="justify-content:center">
+        <a class="btn" href="#try" data-todo="ссылка на демо">Пройти пример</a>
+        <a class="btn ghost" href="how-it-works.html">Как это устроено</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">Диагностика · рабочее название · предварительное заключение не заменяет консультацию специалиста</div>
+</footer>
+
+</body>
+</html>
